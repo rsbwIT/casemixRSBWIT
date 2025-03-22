@@ -317,7 +317,51 @@
 </div>
 
 <div class="modal fade" id="UploadInacbg" tabindex="-1" role="dialog" aria-hidden="true" wire:ignore.self>
-    <!-- Modal content -->
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info">
+                <h5 class="modal-title">Upload Berkas INACBG: <u>{{ $nm_pasien }}</u></h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Pilih File INACBG:</label>
+                    <input type="file" class="form-control"
+                           wire:model="upload_file_inacbg.{{ $keyModal }}"
+                           accept=".pdf,.PDF">
+                    <small class="form-text text-muted">
+                        Format file yang diterima: PDF
+                    </small>
+                </div>
+
+                <div class="alert alert-info mt-3">
+                    <h6>Petunjuk Upload:</h6>
+                    <ul class="mb-0">
+                        <li>Pastikan file berformat PDF</li>
+                        <li>Nama file akan otomatis di-generate</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                <button type="button"
+                        class="btn btn-primary"
+                        wire:click="UploadInacbg('{{ $keyModal }}', '{{ $no_rawat }}', '{{ $no_rkm_medis }}')"
+                        wire:loading.attr="disabled"
+                        wire:target="upload_file_inacbg.{{ $keyModal }}">
+                    <span wire:loading.remove wire:target="upload_file_inacbg.{{ $keyModal }}">
+                        <i class="fas fa-upload"></i> Upload
+                    </span>
+                    <span wire:loading wire:target="upload_file_inacbg.{{ $keyModal }}">
+                        <span class="spinner-grow spinner-grow-sm" role="status"></span>
+                        Mengupload...
+                    </span>
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 @push('scripts')
