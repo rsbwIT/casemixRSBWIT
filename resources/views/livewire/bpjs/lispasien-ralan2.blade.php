@@ -1,4 +1,19 @@
 <div>
+    @php
+    function getCorrectFilePath($lokasi_file) {
+        // Bersihkan path dari duplikasi
+        $cleanPath = ltrim($lokasi_file, '/');
+
+        // Jika path sudah dimulai dengan 'pages/upload/'
+        if (strpos($cleanPath, 'pages/upload/') === 0) {
+            $cleanPath = substr($cleanPath, strlen('pages/upload/'));
+        }
+
+        // Kembalikan URL lengkap
+        return 'http://192.168.5.88/webapps/berkasrawat/pages/upload/' . $cleanPath;
+    }
+    @endphp
+
     <div class="row">
         <div class="col-md-4 col-12">
             <div class="info-box">
@@ -203,78 +218,98 @@
     </div>
 </div>
 
-<!-- PENTING: Pindahkan modal di luar table -->
+<!-- Modal Upload Scan -->
 <div class="modal fade" id="UploadScan" tabindex="-1" role="dialog" aria-hidden="true" wire:ignore.self>
-    <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header">
-                <h6 class="modal-title">Upload Berkas <b>SCAN</b> :
-                    <u>{{ $nm_pasien }}</u>
-                </h6>
+            <div class="modal-header bg-info">
+                <h5 class="modal-title">Pilih Berkas Digital untuk SCAN</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
             <div class="modal-body">
-                <div class="row">
-                    <div class="col-12">
-                        {{-- Form Upload File --}}
-                        <div class="form-group">
-                            <label>File Scan</label>
-                            <input type="file" class="form-control form-control" wire:model="upload_file_scan.{{ $keyModal }}">
-                        </div>
-
-                        {{-- Debug Info - Hapus setelah masalah teratasi --}}
-                        <div class="alert alert-info">
-                            Jumlah berkas: {{ count($berkasList) }}<br>
-                            @if(isset($selectedBerkasIndex))
-                                Berkas terpilih: {{ $selectedBerkasIndex }}<br>
-                            @endif
-                        </div>
-
-                        {{-- Daftar Berkas Digital dari Database --}}
-                        @if (count($berkasList) > 0)
-                            <div class="mt-4">
-                                <h6>Berkas Digital Tersedia:</h6>
-                                <div class="list-group mb-3">
-                                    @foreach ($berkasList as $index => $berkas)
-                                        <div class="list-group-item d-flex justify-content-between align-items-center {{ $selectedBerkasIndex == $index ? 'active' : '' }}">
-                                            <button type="button"
-                                                class="btn text-dark text-left p-0 border-0 bg-transparent"
-                                                wire:click="showBerkas({{ $index }})">
-                                                Berkas {{ $index + 1 }}
-                                                @if (isset($berkas['kode']))
-                                                    - Kode: {{ $berkas['kode'] }}
-                                                @endif
-                                            </button>
-
-                                            {{-- Tombol Download --}}
-                                            <a href="{{ $this->getDownloadFileUrl($index) }}"
-                                               class="btn btn-sm btn-success"
-                                               download="{{ $this->getFileName($index) }}"
-                                               target="_blank">
-                                                <i class="fas fa-download"></i> Download
-                                            </a>
-                                        </div>
-                                    @endforeach
-                                </div>
-
-                            </div>
-                        @else
-                            <div class="alert alert-warning mt-4">
-                                Tidak ada berkas digital yang ditemukan untuk nomor rawat ini.
-                            </div>
-                        @endif
-                    </div>
+                <!-- Form upload file manual -->
+                <div class="form-group">
+                    <label>Upload File SCAN Baru:</label>
+                    <input type="file" class="form-control form-control" wire:model="upload_file_scan.{{ $keyModal }}">
                 </div>
+
+                <hr>
+                <h6 class="font-weight-bold">Atau pilih dari berkas digital yang ada:</h6>
+
+                @if(count($berkasList) > 0)
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="bg-info text-white">
+                                <tr>
+                                    <th width="5%">
+                                        Pilih
+                                    </th>
+                                    <th width="50%">Nama Berkas</th>
+                                    @if(isset($berkasList[0]['kode']))
+                                    <th width="20%">Kode</th>
+                                    @endif
+                                    <th width="20%">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($berkasList as $index => $berkas)
+                                <tr>
+                                    <td class="text-center">
+                                        <input type="checkbox"
+                                               wire:model="selectedFiles"
+                                               value="{{ $berkas['lokasi_file'] }}"
+                                               class="form-check-input">
+                                    </td>
+                                    <td>{{ basename($berkas['lokasi_file']) }}</td>
+                                    @if(isset($berkas['kode']))
+                                    <td>{{ $berkas['kode'] }}</td>
+                                    @endif
+                                    <td>
+                                        <button type="button"
+                                                class="btn btn-sm btn-success btn-preview"
+                                                onclick="window.open('{{ getCorrectFilePath($berkas['lokasi_file']) }}', '_blank')">
+                                            <i class="fas fa-eye"></i> Lihat
+                                        </button>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <div class="alert alert-warning">
+                        Tidak ada berkas digital yang ditemukan.
+                    </div>
+                @endif
             </div>
             <div class="modal-footer justify-content-between">
-                <button type="submit" class="btn btn-primary" data-dismiss="modal"
-                    wire:click="UploadScan('{{ $keyModal }}', '{{ $no_rawat }}', '{{ $no_rkm_medis }}')"
-                    wire:loading.remove wire:target="upload_file_scan.{{ $keyModal }}">Submit
-                </button>
-                <div wire:loading wire:target="upload_file_scan.{{ $keyModal }}">
-                    Uploading...
+                <div>
+                    <button type="button" class="btn btn-danger"
+                            wire:click="$set('selectedFiles', [])">
+                        <i class="fas fa-times"></i> Batal Pilih Berkas
+                    </button>
+                </div>
+                <div>
+                    <button type="button"
+                            class="btn btn-success"
+                            wire:click="pilihDanSimpanBerkas"
+                            @if(count($selectedFiles) === 0) disabled @endif>
+                        <i class="fas fa-check-circle"></i> Pilih & Simpan (<span>{{ count($selectedFiles) }}</span>)
+                    </button>
+
+                    <button type="button"
+                            class="btn btn-primary"
+                            wire:click="UploadScan('{{ $keyModal }}', '{{ $no_rawat }}', '{{ $no_rkm_medis }}')"
+                            wire:loading.remove wire:target="upload_file_scan.{{ $keyModal }}"
+                            @if(!isset($upload_file_scan[$keyModal])) disabled @endif>
+                        <i class="fas fa-upload"></i> Upload File
+                    </button>
+
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                        Tutup
+                    </button>
                 </div>
             </div>
         </div>
@@ -284,3 +319,18 @@
 <div class="modal fade" id="UploadInacbg" tabindex="-1" role="dialog" aria-hidden="true" wire:ignore.self>
     <!-- Modal content -->
 </div>
+
+@push('scripts')
+<script>
+    document.addEventListener('livewire:load', function() {
+        Livewire.on('showAlert', (data) => {
+            Swal.fire({
+                icon: data.type,
+                title: data.message,
+                showConfirmButton: false,
+                timer: 3000
+            });
+        });
+    });
+</script>
+@endpush

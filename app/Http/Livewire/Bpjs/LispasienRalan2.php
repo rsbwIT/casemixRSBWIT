@@ -27,6 +27,8 @@ class LispasienRalan2 extends Component
     public $berkasList = []; // Array untuk menyimpan daftar semua berkas digital
     public $selectedBerkasIndex = null;
     public $serverUrl = 'http://192.168.5.88/webapps/berkasrawat/pages/upload/';
+    public $selectedFiles = [];
+    public $selectAll = false;
 
     use WithFileUploads;
 
@@ -243,5 +245,112 @@ class LispasienRalan2 extends Component
         // Ambil nama file dari path
         $parts = explode('/', $lokasi_file);
         return end($parts);
+    }
+
+    public function updatedSelectAll($value)
+    {
+        if($value) {
+            $this->selectedFiles = collect($this->berkasList)->pluck('lokasi_file')->toArray();
+        } else {
+            $this->selectedFiles = [];
+        }
+    }
+
+    public function pilihDanSimpanBerkas()
+    {
+        if(count($this->selectedFiles) == 0) {
+            session()->flash('errorBundling', 'Pilih minimal satu berkas terlebih dahulu');
+            return;
+        }
+
+        try {
+            $client = new \GuzzleHttp\Client();
+            $tempDir = sys_get_temp_dir();
+            $filesPaths = [];
+
+            // Download berkas yang dipilih
+            foreach($this->selectedFiles as $lokasi_file) {
+                $cleanPath = ltrim($lokasi_file, '/');
+                if (strpos($cleanPath, 'pages/upload/') === 0) {
+                    $cleanPath = substr($cleanPath, strlen('pages/upload/'));
+                }
+
+                $fileUrl = 'http://192.168.5.88/webapps/berkasrawat/pages/upload/' . $cleanPath;
+                $tempFilePath = $tempDir . '/' . basename($cleanPath);
+
+                $response = $client->get($fileUrl, [
+                    'sink' => $tempFilePath,
+                    'timeout' => 30,
+                    'connect_timeout' => 30
+                ]);
+
+                if (file_exists($tempFilePath)) {
+                    $filesPaths[] = $tempFilePath;
+                }
+            }
+
+            // Gabung berkas
+            $pdf = new \setasign\Fpdi\Fpdi();
+
+            foreach($filesPaths as $filePath) {
+                $fileInfo = pathinfo($filePath);
+                $extension = strtolower($fileInfo['extension'] ?? '');
+
+                if($extension === 'pdf') {
+                    $pageCount = $pdf->setSourceFile($filePath);
+                    for($i = 1; $i <= $pageCount; $i++) {
+                        $template = $pdf->importPage($i);
+                        $size = $pdf->getTemplateSize($template);
+
+                        $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                        $pdf->useTemplate($template);
+                    }
+                } else if(in_array($extension, ['jpg', 'jpeg', 'png'])) {
+                    $pdf->AddPage();
+                    $pdf->Image($filePath, 10, 10, 190);
+                }
+            }
+
+            // Simpan file gabungan
+            $no_rawatSTR = str_replace('/', '', $this->no_rawat);
+            $newFileName = 'SCAN-' . $no_rawatSTR . '.pdf';
+            $outputPath = $tempDir . '/' . $newFileName;
+            $pdf->Output('F', $outputPath);
+
+            // Upload ke storage
+            \Storage::disk('public')->put('file_scan/' . $newFileName, file_get_contents($outputPath));
+
+            // Simpan ke database
+            \DB::table('bw_file_casemix_scan')->updateOrInsert(
+                ['no_rawat' => $this->no_rawat],
+                [
+                    'no_rkm_medis' => $this->no_rkm_medis,
+                    'file' => $newFileName,
+                ]
+            );
+
+            // Bersihkan temporary files
+            foreach($filesPaths as $filePath) {
+                if(file_exists($filePath)) {
+                    unlink($filePath);
+                }
+            }
+            if(file_exists($outputPath)) {
+                unlink($outputPath);
+            }
+
+            session()->flash('successSaveINACBG', 'Berkas berhasil digabungkan dan disimpan');
+
+            // Tutup modal
+            $this->dispatchBrowserEvent('closeModal', ['modalId' => 'UploadScan']);
+            $this->selectedFiles = [];
+            $this->selectAll = false;
+
+            // Refresh data
+            $this->getListPasienRalan();
+
+        } catch(\Exception $e) {
+            session()->flash('errorBundling', 'Gagal menggabungkan berkas: ' . $e->getMessage());
+        }
     }
 }
